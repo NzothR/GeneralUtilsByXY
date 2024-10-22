@@ -2,14 +2,18 @@ import os
 import cv2
 import sys
 import time
+import torch
 import numpy as np
+from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from constants import logger
-from typing import Callable, Set, Optional, Tuple, List
 from torch.optim.lr_scheduler import _LRScheduler
+from typing import Callable, Set, Optional, Tuple, List, Dict
+from torchmetrics import Accuracy, Precision, Recall, F1Score, AUROC, ConfusionMatrix, CohenKappa, MeanAbsoluteError, MeanSquaredError, R2Score
 
+# 自定义模块
+from constants import logger, Metrics
 """一些辅助函数"""
 
 class FileUtils:
@@ -210,6 +214,7 @@ class TrainUtils:
     def __init__(self):
         pass
 
+    @staticmethod
     def is_dataloader_empty(data_loader: DataLoader) -> bool:
         """
         判断DataLoader是否为空
@@ -217,6 +222,72 @@ class TrainUtils:
         :return: 如果DataLoader为空, 返回True, 否则返回False
         """
         return len(data_loader.dataset) == 0
+
+    @staticmethod
+    def calculate_metric(metric: Metrics, y_pred: torch.Tensor, y_true: torch.Tensor) -> float:
+        """
+        根据预测值和真实值计算对应的指标
+        :param metric: 指标类型
+        :param y_pred: 预测值
+        :param y_true: 真实值
+        :return: 指标计算结果
+        """
+        # 准确率
+        if metric == Metrics.ACCURACY:
+            accuracy = Accuracy(task="multiclass", num_classes=y_pred.shape[1])
+            predictions = torch.argmax(y_pred, dim=1)
+            accuracy.update(predictions, y_true)
+            return accuracy.compute()
+        # 精确率
+        if metric == Metrics.PRECISION:
+            precision = Precision(task="multiclass", num_classes=y_pred.shape[1])
+            precision.update(y_pred, y_true)
+            return precision.compute()
+        # 召回率
+        if metric == Metrics.RECALL:
+            recall = Recall(task="multiclass", num_classes=y_pred.shape[1])
+            recall.update(y_pred, y_true)
+            return recall.compute()
+        # F1分数
+        if metric == Metrics.F1_SCORE:
+            f1_score = F1Score(task="multiclass", num_classes=y_pred.shape[1])
+            f1_score.update(y_pred, y_true)
+            return f1_score.compute()
+        # AUC_ROC
+        if metric == Metrics.AUC_ROC:
+            auc_roc = AUROC(task="multiclass", num_classes=y_pred.shape[1])
+            auc_roc.update(y_pred, y_true)
+            return auc_roc.compute()
+        # 混淆矩阵
+        if metric == Metrics.CONFUSION_MATRIX:
+            confusion_matrix = ConfusionMatrix(task="multiclass", num_classes=y_pred.shape[1])
+            confusion_matrix.update(y_pred, y_true)
+            return confusion_matrix.compute()
+        # CohenKappa系数
+        if metric == Metrics.COHEN_KAPPA:
+            cohen_kappa = CohenKappa(task="multiclass", num_classes=y_pred.shape[1])
+            cohen_kappa.update(y_pred, y_true)
+            return cohen_kappa.compute()
+        # MAE
+        if metric == Metrics.MAE:
+            mae = MeanAbsoluteError()
+            mae.update(y_pred, y_true)
+            return mae.compute()
+        # MSE
+        if metric == Metrics.MSE:
+            mse = MeanSquaredError()
+            mse.update(y_pred, y_true)
+            return mse.compute()
+        # RMSE
+        if metric == Metrics.RMSE:
+            rmse = MeanSquaredError(squared=False)
+            rmse.update(y_pred, y_true)
+            return rmse.compute()
+        # R2Score
+        if metric == Metrics.R2:
+            r2 = R2Score()
+            r2.update(y_pred, y_true)
+            return r2.compute()
     @staticmethod
     def general_train(
         train_data_loader: DataLoader,
@@ -228,13 +299,13 @@ class TrainUtils:
         learning_rate: float = 0.1,
         device: str = "cpu",
         lr_scheduler: Optional[_LRScheduler] = None,
-        metrics: Optional[List[Callable]] = None,
+        metrics: Optional[List[Metrics]] = None,
         log_interval: int = 10,
         patience: Optional[int] = None,
         init_weights: Optional[Callable] = None,
         checkpoint_path: Optional[str] = None,
         save_every_n_epochs: int = 10
-    ) -> nn.Module:
+    ) -> Tuple[nn.Module, Dict[str, List[float]]]:
         """
         通用训练函数
         :param train_data_loader: 训练数据集的DataLoader
@@ -252,12 +323,112 @@ class TrainUtils:
         :param init_weights: 权重初始化函数, 默认为None
         :param checkpoint_path: 检查点保存路径, 默认为None
         :param save_every_n_epochs: 每隔多少轮保存一次模型, 默认为10
-        :return: 训练好的网络模型
+        :return: 训练好的网络模型和训练过程记录
         """
-        # 将网络模型移动到指定设备
-        net.to(device)
+
 
         # 设置优化器
         if optimizer is None:
             # 默认使用SGD优化器
             optimizer = optim.SGD(net.parameters(), lr=learning_rate, momentum=0.9, weight_decay=5e-4)
+        # 设置评价指标
+        if metrics is None:
+            metrics = [Metrics.ACCURACY]
+
+
+        # 存储训练过程
+        history = {"Loss": []}
+        for metric in metrics:
+            history[metric.value] = []
+
+        # 将网络模型移动到指定设备
+        net.to(device)
+
+        # 基础准确率
+        best_accuracy = 0.0
+        # 开始训练
+        start_time = time.time()
+        for epoch in range(1, epochs + 1):
+            # 构建tqdm进度条, 用于监控训练过程
+            process_bar = tqdm(train_data_loader, unit='step')
+
+            # 存储每个批次的对应指标
+            metric_list = {}
+            # 打开训练模式
+            net.train()
+
+            # 对DataLoader中的每个批次进行训练
+            for step, (train_images, labels) in enumerate(process_bar):
+                # 将数据移动到指定设备
+                train_images = train_images.to(device)
+                labels = labels.to(device)
+
+                # 清空梯度
+                optimizer.zero_grad()
+
+                # 前向传播
+                outputs = net(train_images)
+
+                # 计算损失
+                loss = criterion(outputs, labels)
+
+                # 计算指标
+                for metric in metrics:
+                    metric_list[metric.value] = TrainUtils.calculate_metric(metric = metric, y_pred = outputs, y_true= labels)
+
+                # 反向传播
+                loss.backward()
+
+                # 更新参数
+                optimizer.step()
+
+                # 构建描述字符串
+                description = f"Epoch: {epoch} "
+                for key, value in metric_list.items():
+                    description += f"{key}: {value:.4f} "
+
+                # 设置进度条的描述
+                process_bar.set_description(description)
+
+            # 在每个epoch结束后进行测试集评估
+            net.eval()
+            with torch.no_grad():
+                all_test_metrics = {metric.value: 0.0 for metric in metrics}
+                total_loss = 0.0
+
+                for test_imgs, labels in test_data_loader:
+                    test_imgs = test_imgs.to(device)
+                    labels = labels.to(device)
+                    outputs = net(test_imgs)
+                    loss = criterion(outputs, labels)
+
+                    # 计算并累积所有指标
+                    for metric in metrics:
+                        all_test_metrics[metric.value] += TrainUtils.calculate_metric(metric=metric, y_pred=outputs, y_true=labels)
+
+                # 计算平均损失
+                test_loss = total_loss / len(test_data_loader)
+                history['Test Loss'].append(test_loss)
+
+                # 计算并存储所有指标
+                for metric in metrics:
+                    avg_metric = all_test_metrics[metric.value] / len(test_data_loader)
+                    history[metric.value].append(avg_metric)
+
+
+                # 打印测试结果
+                print(f"Epoch: {epoch}, Test Loss: {test_loss:.4f}")
+                for metric in metrics:
+                    print(f"Epoch: {epoch}, {metric.value}: {avg_metric:.4f}")
+
+            # 学习率调度
+            if lr_scheduler is not None:
+                lr_scheduler.step()
+
+            # 关闭进度条
+            process_bar.close()
+        # 结束时间记录
+        end_time = time.time()
+        print("训练结束, 耗时：%.2f秒" % (end_time - start_time))
+        return net, history
+
