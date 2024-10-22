@@ -5,7 +5,7 @@ from decorators import singleton
 from datetime import datetime
 
 """
-一个简单的日志记录器，用于记录日志到文件，控制台
+一个简单的全局单一日志记录器，用于记录日志到文件，控制台
 """
 
 class CustomFormatter(logging.Formatter):
@@ -102,5 +102,3 @@ class Logger:
         self.logger.critical(msg, *args, **kwargs)
 
 
-
-logger = Logger()

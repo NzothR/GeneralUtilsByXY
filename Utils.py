@@ -1,11 +1,14 @@
-import cv2
 import os
+import cv2
+import sys
 import time
 import numpy as np
-import sys
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from constants import logger
 from typing import Callable, Set, Optional, Tuple, List
-
-from Logger import logger
+from torch.optim.lr_scheduler import _LRScheduler
 
 """一些辅助函数"""
 
@@ -48,7 +51,7 @@ class ImageUtils:
         else:
             self.valid_image_ext = set(image_ext)
 
-    def resize_and_pad(self, image_directory: str, target_size: Optional[tuple[int, int]], fill_color: tuple = (0, 0, 0), save_directory: str = None):
+    def resize_and_pad(self, image_directory: str, target_size: Optional[tuple[int, int]], fill_color: tuple = (0, 0, 0), save_directory: str = None) -> None:
         """
         缩放与填充图像至统一尺寸
         :param image_directory: 包含需要处理的图像目录
@@ -201,3 +204,60 @@ class ImageUtils:
                     min_height = height
         FileUtils.process_files_with_filter(directory, operation, self.valid_image_ext)
         return max_width, max_height, min_width, min_height
+
+class TrainUtils:
+    """训练工具类"""
+    def __init__(self):
+        pass
+
+    def is_dataloader_empty(data_loader: DataLoader) -> bool:
+        """
+        判断DataLoader是否为空
+        :param data_loader: DataLoader对象
+        :return: 如果DataLoader为空, 返回True, 否则返回False
+        """
+        return len(data_loader.dataset) == 0
+    @staticmethod
+    def general_train(
+        train_data_loader: DataLoader,
+        test_data_loader: DataLoader,
+        net: nn.Module,
+        criterion: Optional[Callable],
+        optimizer: Optional[optim.Optimizer] = None,
+        epochs: int = 20,
+        learning_rate: float = 0.1,
+        device: str = "cpu",
+        lr_scheduler: Optional[_LRScheduler] = None,
+        metrics: Optional[List[Callable]] = None,
+        log_interval: int = 10,
+        patience: Optional[int] = None,
+        init_weights: Optional[Callable] = None,
+        checkpoint_path: Optional[str] = None,
+        save_every_n_epochs: int = 10
+    ) -> nn.Module:
+        """
+        通用训练函数
+        :param train_data_loader: 训练数据集的DataLoader
+        :param test_data_loader: 测试数据集的DataLoader
+        :param net: 待训练的网络模型
+        :param epochs: 训练周期数, 默认为20
+        :param learning_rate: 学习率, 默认为0.1
+        :param device: 计算设备, 例如"cpu"或"cuda", 默认为"cpu"
+        :param criterion: 损失函数
+        :param optimizer: 优化器实例, 默认为None(内部将创建一个SGD优化器)
+        :param lr_scheduler: 学习率调度器, 默认为None, 即不使用学习率调度器
+        :param metrics: 评估指标列表, 默认为None, 默认使用准确率评估
+        :param log_interval: 日志记录间隔(每多少个批次打印一次信息), 默认为10
+        :param patience: 早停机制的容忍度, 默认为None(不启用早停)
+        :param init_weights: 权重初始化函数, 默认为None
+        :param checkpoint_path: 检查点保存路径, 默认为None
+        :param save_every_n_epochs: 每隔多少轮保存一次模型, 默认为10
+        :return: 训练好的网络模型
+        """
+        # 将网络模型移动到指定设备
+        net.to(device)
+
+        # 设置优化器
+        if optimizer is None:
+            # 默认使用SGD优化器
+            optimizer = optim.SGD(net.parameters(), lr=learning_rate, momentum=0.9, weight_decay=5e-4)
