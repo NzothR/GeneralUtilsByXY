@@ -29,3 +29,11 @@ class Metrics(Enum):
     IOU = "iou"                             # Intersection over Union, 交并比, 检测框与真实框的重叠程度
     NMS = "nms"                             # Non-Maximum Suppression, 非极大抑制, 用于去除冗余的检测框
     LOG_LOSS= "log_loss"                    # Log Loss, 对数损失, 也称为交叉熵损失，衡量概率估计的准确性
+
+
+class AverageType(Enum):
+    """
+    多分类问题计算平均值的类型
+    """
+    MACRO = 'macro' # 宏平均，即计算每个类的平均值，然后取平均值
+    MICRO = 'micro' # 微平均，即计算所有类的平均值
