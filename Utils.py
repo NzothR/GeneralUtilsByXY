@@ -7,6 +7,7 @@ import numpy as np
 from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
+import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import _LRScheduler
 from typing import Callable, Set, Optional, Tuple, List, Dict
@@ -411,3 +412,40 @@ class TrainUtils:
         print("训练结束, 耗时：%.2f秒" % (end_time - start_time))
         return net, history
 
+    @staticmethod
+    def plot_history(history, save_path=None) -> None:
+        """
+        绘制训练过程记录中的损失曲线和指标曲线，每个指标一个图表
+        :param history: 训练过程记录, 包含损失和指标等数据
+        :param save_path: 图表保存路径前缀，如果给出，则会保存图表
+        """
+        # 检查history是否为空
+        if not history:
+            print("History is empty.")
+            return
+
+        epochs = np.arange(1, len(next(iter(history.values()))) + 1)  # 获取epochs数量并生成从1开始的序列
+
+        # 创建一个新的图形窗口
+        for metric, values in history.items():
+            # 创建一个单独的子图用于当前指标
+            fig, ax = plt.subplots(figsize=(10, 5))
+            
+            # 绘制曲线
+            ax.plot(epochs, values, label=f'{metric}')  # 使用epochs作为x轴
+            ax.set_title(f'Training {metric} Over Epochs')
+            ax.set_xlabel('Epoch')
+            ax.set_ylabel(metric)
+            ax.legend()
+
+            # 设置x轴的刻度只显示整数值
+            ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+
+            plt.tight_layout()
+
+            # 保存图表
+            if save_path:
+                plt.savefig(f'{save_path}_{metric}.png')
+
+            # 显示图表
+            plt.show()
