@@ -10,10 +10,10 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import _LRScheduler
 from typing import Callable, Set, Optional, Tuple, List, Dict
-from torchmetrics import Accuracy, Precision, Recall, F1Score, AUROC, ConfusionMatrix, CohenKappa, MeanAbsoluteError, MeanSquaredError, R2Score
 
 # 自定义模块
-from constants import logger, Metrics
+from constants import logger, Metrics, AverageType
+from MetricsUtils import MetricsUtils
 """一些辅助函数"""
 
 class FileUtils:
@@ -209,10 +209,12 @@ class ImageUtils:
         FileUtils.process_files_with_filter(directory, operation, self.valid_image_ext)
         return max_width, max_height, min_width, min_height
 
+
 class TrainUtils:
     """训练工具类"""
     def __init__(self):
-        pass
+        # 初始化指标计算工具
+        self.metrics_utils = MetricsUtils()
 
     @staticmethod
     def is_dataloader_empty(data_loader: DataLoader) -> bool:
@@ -222,78 +224,50 @@ class TrainUtils:
         :return: 如果DataLoader为空, 返回True, 否则返回False
         """
         return len(data_loader.dataset) == 0
-
     @staticmethod
-    def calculate_metric(metric: Metrics, y_pred: torch.Tensor, y_true: torch.Tensor) -> float:
+    def get_num_classes(data_loaders: List[DataLoader]) -> int:
+        """
+        从数据加载器中推导出类别数量
+        :param data_loaders: 数据加载器列表
+        :return: 类别数量
+        """
+        all_labels = set()
+
+        for data_loader in data_loaders:
+            for _, labels in data_loader:
+                all_labels.update(labels.numpy())
+
+        return len(all_labels)
+
+    def calculate_metric(self, metric: Metrics, y_pred: torch.Tensor, y_true: torch.Tensor, num_classes: int, average_type: AverageType = AverageType.MACRO, device: str = 'cpu') -> float:
         """
         根据预测值和真实值计算对应的指标
         :param metric: 指标类型
         :param y_pred: 预测值
         :param y_true: 真实值
+        :param num_classes: 类别数量
+        :param average_type: 平均类型, 可选值: MACRO, MICRO
+        :param device: 计算设备
         :return: 指标计算结果
         """
-        # 准确率
+        # 获取预测值
+        predictions = torch.argmax(y_pred, dim=1)
+        # 计算指标
         if metric == Metrics.ACCURACY:
-            accuracy = Accuracy(task="multiclass", num_classes=y_pred.shape[1])
-            predictions = torch.argmax(y_pred, dim=1)
-            accuracy.update(predictions, y_true)
-            return accuracy.compute()
-        # 精确率
+            return self.metrics_utils.calculate_accuracy(predictions, y_true, num_classes, device)
         if metric == Metrics.PRECISION:
-            precision = Precision(task="multiclass", num_classes=y_pred.shape[1])
-            precision.update(y_pred, y_true)
-            return precision.compute()
-        # 召回率
+            return self.metrics_utils.calculate_precision(predictions, y_true, num_classes, average_type, device)
         if metric == Metrics.RECALL:
-            recall = Recall(task="multiclass", num_classes=y_pred.shape[1])
-            recall.update(y_pred, y_true)
-            return recall.compute()
-        # F1分数
+            return self.metrics_utils.calculate_recall(predictions, y_true, num_classes, average_type, device)
         if metric == Metrics.F1_SCORE:
-            f1_score = F1Score(task="multiclass", num_classes=y_pred.shape[1])
-            f1_score.update(y_pred, y_true)
-            return f1_score.compute()
-        # AUC_ROC
-        if metric == Metrics.AUC_ROC:
-            auc_roc = AUROC(task="multiclass", num_classes=y_pred.shape[1])
-            auc_roc.update(y_pred, y_true)
-            return auc_roc.compute()
-        # 混淆矩阵
-        if metric == Metrics.CONFUSION_MATRIX:
-            confusion_matrix = ConfusionMatrix(task="multiclass", num_classes=y_pred.shape[1])
-            confusion_matrix.update(y_pred, y_true)
-            return confusion_matrix.compute()
-        # CohenKappa系数
-        if metric == Metrics.COHEN_KAPPA:
-            cohen_kappa = CohenKappa(task="multiclass", num_classes=y_pred.shape[1])
-            cohen_kappa.update(y_pred, y_true)
-            return cohen_kappa.compute()
-        # MAE
-        if metric == Metrics.MAE:
-            mae = MeanAbsoluteError()
-            mae.update(y_pred, y_true)
-            return mae.compute()
-        # MSE
-        if metric == Metrics.MSE:
-            mse = MeanSquaredError()
-            mse.update(y_pred, y_true)
-            return mse.compute()
-        # RMSE
-        if metric == Metrics.RMSE:
-            rmse = MeanSquaredError(squared=False)
-            rmse.update(y_pred, y_true)
-            return rmse.compute()
-        # R2Score
-        if metric == Metrics.R2:
-            r2 = R2Score()
-            r2.update(y_pred, y_true)
-            return r2.compute()
-    @staticmethod
-    def general_train(
+            return self.metrics_utils.calculate_f1_score(predictions, y_true, num_classes, average_type, device)
+
+    def general_train(self,
         train_data_loader: DataLoader,
         test_data_loader: DataLoader,
         net: nn.Module,
         criterion: Optional[Callable],
+        num_classes: int = None,
         optimizer: Optional[optim.Optimizer] = None,
         epochs: int = 20,
         learning_rate: float = 0.1,
@@ -315,6 +289,7 @@ class TrainUtils:
         :param learning_rate: 学习率, 默认为0.1
         :param device: 计算设备, 例如"cpu"或"cuda", 默认为"cpu"
         :param criterion: 损失函数
+        :param num_classes: 类别数量, 默认为None(自动根据数据集获取)
         :param optimizer: 优化器实例, 默认为None(内部将创建一个SGD优化器)
         :param lr_scheduler: 学习率调度器, 默认为None, 即不使用学习率调度器
         :param metrics: 评估指标列表, 默认为None, 默认使用准确率评估
@@ -326,6 +301,9 @@ class TrainUtils:
         :return: 训练好的网络模型和训练过程记录
         """
 
+        # 初始化类别数量
+        if num_classes is None:
+            num_classes = self.get_num_classes([train_data_loader, test_data_loader])
 
         # 设置优化器
         if optimizer is None:
@@ -334,7 +312,6 @@ class TrainUtils:
         # 设置评价指标
         if metrics is None:
             metrics = [Metrics.ACCURACY]
-
 
         # 存储训练过程
         history = {"Loss": []}
@@ -374,7 +351,7 @@ class TrainUtils:
 
                 # 计算指标
                 for metric in metrics:
-                    metric_list[metric.value] = TrainUtils.calculate_metric(metric = metric, y_pred = outputs, y_true= labels)
+                    metric_list[metric.value] = self.calculate_metric(metric = metric, y_pred = outputs, y_true = labels, num_classes = num_classes, device = device)
 
                 # 反向传播
                 loss.backward()
@@ -401,29 +378,31 @@ class TrainUtils:
                     labels = labels.to(device)
                     outputs = net(test_imgs)
                     loss = criterion(outputs, labels)
+                    total_loss += loss.item()
 
-                    # 计算并累积所有指标
+                    # 计算并存储所有指标
                     for metric in metrics:
-                        all_test_metrics[metric.value] += TrainUtils.calculate_metric(metric=metric, y_pred=outputs, y_true=labels)
+                        metric_value = self.calculate_metric(metric=metric, y_pred=outputs, y_true=labels, num_classes=num_classes, device=device)
+                        all_test_metrics[metric.value] += metric_value
 
                 # 计算平均损失
                 test_loss = total_loss / len(test_data_loader)
-                history['Test Loss'].append(test_loss)
+                history['Loss'].append(test_loss)
 
-                # 计算并存储所有指标
+                # 计算并存储平均指标
                 for metric in metrics:
-                    avg_metric = all_test_metrics[metric.value] / len(test_data_loader)
-                    history[metric.value].append(avg_metric)
+                    all_test_metrics[metric.value] = all_test_metrics[metric.value] / len(test_data_loader)
+                    history[metric.value].append(all_test_metrics[metric.value])
 
 
                 # 打印测试结果
                 print(f"Epoch: {epoch}, Test Loss: {test_loss:.4f}")
                 for metric in metrics:
-                    print(f"Epoch: {epoch}, {metric.value}: {avg_metric:.4f}")
+                    print(f"Epoch: {epoch}, Test {metric.value}: {all_test_metrics[metric.value]:.4f}")
 
             # 学习率调度
             if lr_scheduler is not None:
-                lr_scheduler.step()
+                lr_scheduler.step(test_loss)
 
             # 关闭进度条
             process_bar.close()
