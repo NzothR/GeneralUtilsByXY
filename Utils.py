@@ -430,7 +430,7 @@ class TrainUtils:
         for metric, values in history.items():
             # 创建一个单独的子图用于当前指标
             fig, ax = plt.subplots(figsize=(10, 5))
-            
+
             # 绘制曲线
             ax.plot(epochs, values, label=f'{metric}')  # 使用epochs作为x轴
             ax.set_title(f'Training {metric} Over Epochs')
@@ -438,8 +438,8 @@ class TrainUtils:
             ax.set_ylabel(metric)
             ax.legend()
 
-            # 设置x轴的刻度只显示整数值
-            ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+            # 设置x轴的刻度为每个epoch出现一次
+            ax.xaxis.set_major_locator(plt.MultipleLocator(1))
 
             plt.tight_layout()
 
