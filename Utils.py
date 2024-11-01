@@ -22,27 +22,38 @@ class FileUtils:
         pass
 
     @staticmethod
-    def process_files_with_filter(directory : str, operation : Callable[[str], None], filter_ext: Optional[Set[str]] = None) -> None:
+    def process_files_with_filter(directory: str, operation: Callable[[str], None], 
+                                 filter_ext: Optional[Set[str]] = None, recursive: bool = False) -> None:
         """
-        遍历指定文件夹下的每个文件, 根据文件类型限定参数过滤文件, 
+        遍历指定文件夹下的每个文件, 根据文件类型限定参数过滤文件,
         并对每个过滤后的文件应用提供的操作函数。
 
         :param directory: 要遍历的文件夹路径
         :param operation: 应用于每个文件的操作函数
-        :param filter_ext: 用来过滤文件的扩展名(如 '.txt')
+        :param filter_ext: 用来过滤文件的扩展名集合(如 {'.txt', '.csv'})
+        :param recursive: 是否递归遍历子文件夹，默认为False
         """
         # 判断目录是否存在
         if not os.path.exists(directory):
             raise FileNotFoundError(f"目录 {directory} 不存在")
-        # 遍历目录下的所有文件和文件夹
-        for entry in os.listdir(directory):
-            # 构建完整的文件路径
-            file_path = os.path.join(directory, entry)
-            # 检查是否为文件并且是指定文件
-            if os.path.isfile(file_path):
-                file_ext = os.path.splitext(entry)[1].lower()
-                if filter_ext is None or file_ext in filter_ext:
-                    operation(file_path)
+
+        # 定义内部递归函数来处理文件夹
+        def process_directory(dir_path):
+            # 遍历目录下的所有文件和文件夹
+            for entry in os.listdir(dir_path):
+                # 构建完整的文件路径
+                file_path = os.path.join(dir_path, entry)
+                # 检查是否为文件并且是指定文件
+                if os.path.isfile(file_path):
+                    file_ext = os.path.splitext(entry)[1].lower()
+                    if filter_ext is None or file_ext in filter_ext:
+                        operation(file_path)
+                elif os.path.isdir(file_path) and recursive:
+                    # 如果是目录且设置了递归，则递归调用自身
+                    process_directory(file_path)
+
+        # 开始处理根目录
+        process_directory(directory)
 
 
 class ImageUtils:
@@ -56,13 +67,15 @@ class ImageUtils:
         else:
             self.valid_image_ext = set(image_ext)
 
-    def resize_and_pad(self, image_directory: str, target_size: Optional[tuple[int, int]], fill_color: tuple = (0, 0, 0), save_directory: str = None) -> None:
+    def resize_and_pad(self, image_directory: str, target_size: Optional[tuple[int, int]], 
+                        fill_color: tuple = (0, 0, 0), save_directory: str = None, recursive: bool = False) -> None:
         """
         缩放与填充图像至统一尺寸
         :param image_directory: 包含需要处理的图像目录
         :param target_width: 目标宽度
         :param target_height: 目标高度
         :param save_directory: 保存目录, 默认为None
+        :param recursive: 是否递归遍历子文件夹, 默认为False
         """
         # 检查目录是否存在
         if not os.path.exists(image_directory):
@@ -151,16 +164,17 @@ class ImageUtils:
         start = time.time()
         logger.info(f"开始处理目录{image_directory}下的图片, 目标尺寸: {target_size[0]}x{target_size[1]}, 填充颜色: {fill_color}, 保存目录: {save_directory}")
         # 处理文件
-        FileUtils.process_files_with_filter(image_directory, process, self.valid_image_ext)
+        FileUtils.process_files_with_filter(image_directory, process, self.valid_image_ext, recursive)
         end = time.time()
         # 计算处理耗时并四舍五入到小数点后六位
         processing_time = end - start
         logger.info(f"处理完成, 耗时{processing_time:.6f}秒, 处理成功{count}张图像, 处理失败{error_count}张图像")
 
-    def is_image_valid(self, directory: str) -> Tuple[List[str], List[str]]:
+    def is_image_valid(self, directory: str, recursive: bool = False) -> Tuple[List[str], List[str]]:
         """
         检查指定目录下的图片是否能够正确读取
         :param directory: 要检查的文件夹路径
+        :param recursive: 是否递归遍历子文件夹, 默认为False
         """
         # 读取失败的图片
         error_load_img_paths = []
@@ -179,12 +193,13 @@ class ImageUtils:
             except Exception as e:
                 error_open_img_paths.append(file_path)
 
-        FileUtils.process_files_with_filter(directory, operation, self.valid_image_ext)
+        FileUtils.process_files_with_filter(directory, operation, self.valid_image_ext, recursive)
         return error_load_img_paths, error_open_img_paths
 
-    def get_mm_dimensions(self, directory: str) -> Tuple[int, int, int, int]:
+    def get_mm_dimensions(self, directory: str, recursive: bool = False) -> Tuple[int, int, int, int]:
         """获取目录中所有图像的最大最小宽度和高度
         :param directory: 目录路径
+        :param recursive: 是否递归遍历子文件夹, 默认为False
         """
         max_width = 0
         max_height = 0
@@ -207,7 +222,7 @@ class ImageUtils:
                     max_height = height
                 elif height < min_height:
                     min_height = height
-        FileUtils.process_files_with_filter(directory, operation, self.valid_image_ext)
+        FileUtils.process_files_with_filter(directory, operation, self.valid_image_ext, recursive)
         return max_width, max_height, min_width, min_height
 
 
