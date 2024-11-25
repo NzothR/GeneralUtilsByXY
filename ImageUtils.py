@@ -53,65 +53,51 @@ class ImageUtils:
 
         def process(image_file_path):
             nonlocal save_directory, error_count, count, fill_color, target_size
-            # 构建保存路径
             saved_image_path = os.path.join(save_directory, os.path.basename(image_file_path))
-            # 检查文件是否存在
-            if os.path.exists(saved_image_path):
-                return
+
             try:
-                # 读取图像
                 image = cv2.imread(image_file_path)
                 if image is None:
                     logger.error(f"无法读取图像: {image_file_path}")
                     error_count += 1
                     return
 
-                # 获取图像尺寸
                 height, width = image.shape[:2]
                 target_width, target_height = target_size
 
-                # 计算目标比例
+                if height == target_height and width == target_width:
+                    cv2.imwrite(saved_image_path, image)
+                    count += 1
+                    return
+
                 target_ratio = target_width / target_height
                 original_ratio = width / height
 
-                # 计算填充后的尺寸
                 if original_ratio > target_ratio:
                     new_width = target_width
-                    new_height = int(new_width / original_ratio)
+                    new_height = int(target_width / original_ratio)
                 else:
                     new_height = target_height
-                    new_width = int(new_height * original_ratio)
+                    new_width = int(target_height * original_ratio)
 
-                # 缩放图像到新的尺寸
                 resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
 
-                # 初始化边距
                 top, bottom, left, right = 0, 0, 0, 0
 
-                # 确定需要填充的像素
-                if new_width > new_height:
-                    difference = new_width - new_height
-                    top, bottom = int(difference / 2), int(difference / 2)
-                    # 如果 difference 是奇数, 顶部多一个像素
-                    if difference % 2 != 0:
-                        top += 1
-                else:
-                    difference = new_height - new_width
+                if new_width < target_width:
+                    difference = target_width - new_width
                     left, right = int(difference / 2), int(difference / 2)
-                    # 如果 difference 是奇数, 左侧多一个像素
                     if difference % 2 != 0:
                         left += 1
+                elif new_height < target_height:
+                    difference = target_height - new_height
+                    top, bottom = int(difference / 2), int(difference / 2)
+                    if difference % 2 != 0:
+                        top += 1
 
-                border_type = cv2.BORDER_CONSTANT  # 边界类型为常数值
+                padded_image = cv2.copyMakeBorder(resized_image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=fill_color)
 
-                # 填充图像
-                padded_image = cv2.copyMakeBorder(resized_image, top, bottom, left, right, border_type, value=fill_color)
-
-                # 再次缩放图像到目标尺寸
-                final_image = cv2.resize(padded_image, target_size, interpolation=cv2.INTER_LINEAR)
-
-                # 保存处理后的图像
-                cv2.imwrite(saved_image_path, final_image)
+                cv2.imwrite(saved_image_path, padded_image)
                 count += 1
             except Exception as e:
                 logger.error(f"处理图像时发生错误: {image_file_path}, 错误信息: {e}")
