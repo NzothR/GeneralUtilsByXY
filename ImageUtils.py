@@ -24,55 +24,56 @@ class ImageUtils:
         else:
             self.valid_image_ext = set(image_ext)
 
-    def resize_and_pad(self, image_directory: str, target_size: Optional[Tuple[int, int]],
-                        fill_color: Tuple[int, int, int] = (0, 0, 0), save_directory: str = None, recursive: bool = False) -> None:
+    def resize_and_pad(
+        self,
+        image_directory: str,
+        target_size: Optional[Tuple[int, int]],
+        fill_color: Tuple[int, int, int] = (0, 0, 0),
+        save_directory: str = None,
+        recursive: bool = False,
+        is_save_image: bool = True
+    ) -> Dict[str, np.ndarray]:
         """
         缩放与填充图像至统一尺寸
         :param image_directory: 包含需要处理的图像目录
         :param target_size: 目标尺寸 (width, height)
         :param fill_color: 填充颜色 (B, G, R), 默认为(0, 0, 0), 即黑色
-        :param save_directory: 保存目录, 默认为上级目录的process文件夹
+        :param save_directory: 保存目录, 默认为上级目录的process文件夹(仅在is_save_image=True时生效)
         :param recursive: 是否递归遍历子文件夹, 默认为False
-        :return: None
+        :param is_save_image: 是否保存图像到目录, 默认为True
+        :return: 字典，键为图像名称(无后缀), 值为缩放后的numpy矩阵
         """
         # 参数校验
         if target_size is None or target_size[0] <= 0 or target_size[1] <= 0:
             raise ValueError("target_size 必须为正整数元组")
         if any(c < 0 or c > 255 for c in fill_color):
             raise ValueError("填充颜色值必须在 0-255 范围内")
-
-        # 检查目录是否存在
         if not os.path.exists(image_directory):
             logger.error(f"目录 {image_directory} 不存在!")
             raise FileNotFoundError("Directory does not exist")
 
-        if save_directory is None:
-            # 规范化路径并获取上级目录
-            normalized_image_dir = os.path.normpath(image_directory)
-            parent_dir = os.path.dirname(normalized_image_dir)
-            save_directory = os.path.join(parent_dir, "process")
+        # 初始化结果字典
+        processed_images: Dict[str, np.ndarray] = {}
 
-        # 创建目录（兼容已存在的情况）
-        try:
-            os.makedirs(save_directory, exist_ok=True)
-        except OSError as e:
-            logger.error(f"目录 {save_directory} 创建失败: {e}")
-            raise FileNotFoundError(f"无法创建目录: {save_directory}") from e
+        # 仅在需要保存时处理目录
+        if is_save_image:
+            if save_directory is None:
+                normalized_image_dir = os.path.normpath(image_directory)
+                parent_dir = os.path.dirname(normalized_image_dir)
+                save_directory = os.path.join(parent_dir, "process")
+
+            try:
+                os.makedirs(save_directory, exist_ok=True)
+            except OSError as e:
+                logger.error(f"目录 {save_directory} 创建失败: {e}")
+                raise FileNotFoundError(f"无法创建目录: {save_directory}") from e
 
         # 计数
         count = 0
-        # 错误文件计数
         error_count = 0
 
-        # 处理函数
-        def process(image_file_path):
-            # 导入外部变量
-            nonlocal save_directory, error_count, count, fill_color, target_size
-            # 获取相对路径并构建保存路径
-            relative_path = os.path.relpath(image_file_path, image_directory)
-            saved_image_path = os.path.join(save_directory, relative_path)
-            os.makedirs(os.path.dirname(saved_image_path), exist_ok=True)
-
+        def process(image_file_path: str) -> None:
+            nonlocal count, error_count, processed_images
             try:
                 # 读取图像
                 image = cv2.imread(image_file_path)
@@ -85,57 +86,66 @@ class ImageUtils:
                 height, width = image.shape[:2]
                 target_width, target_height = target_size
 
-                # 如果图像尺寸与目标尺寸相同，则直接保存
+                # 如果尺寸相同则直接使用原图
                 if height == target_height and width == target_width:
-                    cv2.imwrite(saved_image_path, image)
-                    count += 1
-                    return
-
-                # 获取缩放比例
-                target_ratio = target_width / target_height
-                original_ratio = width / height
-
-                # 计算缩放后的尺寸
-                if original_ratio > target_ratio:
-                    new_width = target_width
-                    new_height = int(target_width / original_ratio)
+                    final_image = image
                 else:
-                    new_height = target_height
-                    new_width = int(target_height * original_ratio)
+                    # 计算缩放比例
+                    target_ratio = target_width / target_height
+                    original_ratio = width / height
 
-                # 缩放图像
-                resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+                    # 计算缩放尺寸
+                    if original_ratio > target_ratio:
+                        new_width = target_width
+                        new_height = int(target_width / original_ratio)
+                    else:
+                        new_height = target_height
+                        new_width = int(target_height * original_ratio)
 
-                top, bottom, left, right = 0, 0, 0, 0
-                # 计算填充尺寸
-                if new_width < target_width:
-                    difference = target_width - new_width
-                    left, right = int(difference / 2), int(difference / 2)
-                    if difference % 2 != 0:
-                        left += 1
-                elif new_height < target_height:
-                    difference = target_height - new_height
-                    top, bottom = int(difference / 2), int(difference / 2)
-                    if difference % 2 != 0:
-                        top += 1
-                # 填充图像
-                padded_image = cv2.copyMakeBorder(resized_image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=fill_color)
+                    # 选择插值方法
+                    interpolation = cv2.INTER_LINEAR if (new_width > width or new_height > height) else cv2.INTER_AREA
+                    resized_image = cv2.resize(image, (new_width, new_height), interpolation=interpolation)
 
-                # 保存图像
-                cv2.imwrite(saved_image_path, padded_image)
+                    # 计算填充
+                    top, bottom, left, right = 0, 0, 0, 0
+                    if new_width < target_width:
+                        diff = target_width - new_width
+                        left, right = diff // 2, diff - diff // 2
+                    elif new_height < target_height:
+                        diff = target_height - new_height
+                        top, bottom = diff // 2, diff - diff // 2
+
+                    # 填充图像
+                    final_image = cv2.copyMakeBorder(resized_image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=fill_color)
+
+                # 保存图像（如果需要）
+                if is_save_image:
+                    relative_path = os.path.relpath(image_file_path, image_directory)
+                    saved_image_path = os.path.join(save_directory, relative_path)
+                    os.makedirs(os.path.dirname(saved_image_path), exist_ok=True)
+                    cv2.imwrite(saved_image_path, final_image)
                 count += 1
+
+                # 添加到结果字典
+                filename = os.path.splitext(os.path.basename(image_file_path))[0]
+                processed_images[filename] = final_image
+
             except Exception as e:
                 logger.error(f"处理图像时发生错误: {image_file_path}, 错误信息: {e}")
                 error_count += 1
 
+        # 执行处理
         start = time.time()
-        logger.info(f"开始处理目录{image_directory}下的图片, 目标尺寸: {target_size[0]}x{target_size[1]}, 填充颜色: {fill_color}, 保存目录: {save_directory}")
-        # 处理文件
+        logger.info(f"开始处理目录 {image_directory}，目标尺寸: {target_size[0]}x{target_size[1]}，填充颜色: {fill_color}" + 
+                   (f"，保存目录: {save_directory}" if is_save_image else "，不保存图像"))
+
         FileUtils.process_files_with_filter(image_directory, process, self.valid_image_ext, recursive)
+
+        # 输出统计信息
         end = time.time()
-        # 计算处理耗时并四舍五入到小数点后六位
-        processing_time = end - start
-        logger.info(f"处理完成, 耗时{processing_time:.6f}秒, 处理成功{count}张图像, 处理失败{error_count}张图像")
+        logger.info(f"处理完成，耗时 {end - start:.6f} 秒，成功: {count}，失败: {error_count}")
+
+        return processed_images
 
     def is_image_valid(self, directory: str, recursive: bool = False) -> Tuple[List[str], List[str]]:
         """
