@@ -1,8 +1,9 @@
-import logging
 import os
+import sys
+import logging
 from datetime import date, datetime
+
 from Decorators import singleton
-from datetime import datetime
 
 """
 一个简单的全局单一日志记录器，用于记录日志到文件，控制台
@@ -39,16 +40,19 @@ class CustomFormatter(logging.Formatter):
 @singleton
 class Logger:
     """
-    日志记录器，用于记录日志到文件，控制台, 采用单例模式, 避免重复创建日志记录器
+    日志记录器，支持动态控制控制台输出及日志级别
     """
-    def __init__(self, name: str = "log"):
-        # 创建一个日志器
+    def __init__(
+        self,
+        name: str = "log",
+        console_enabled: bool = True,  # 初始是否启用控制台输出
+        console_level: int = logging.DEBUG  # 控制台默认日志级别
+    ):
         self.logger = logging.getLogger(name)
-        # 设置日志级别
-        self.logger.setLevel(logging.DEBUG)
-        # 按日期保存的日志
+        self.logger.setLevel(logging.DEBUG)  # 全局最低级别
+
+        # 日志文件路径
         date_log = date.today().strftime("%Y-%m-%d") + ".log"
-        # 当前日志
         latest_log = "latest.log"
         self.date_log_path = os.path.join("logs", date_log)
         self.latest_log_path = os.path.join("logs", latest_log)
@@ -56,36 +60,59 @@ class Logger:
         if not os.path.exists("logs"):
             os.mkdir("logs")
 
+        # 清理旧Handler（防止单例重复初始化问题）
+        self.logger.handlers.clear()
 
-        # 创建两个文件 handler 并设置其日志级别为 DEBUG
+        # 初始化文件Handler（始终存在）
+        self._init_file_handlers()
+
+        # 初始化控制台Handler（动态管理）
+        self.console_handler = None
+        if console_enabled:
+            self.enable_console(console_level)
+
+    def _init_file_handlers(self):
+        """初始化固定文件Handler"""
+        # 按日期保存的日志
         date_file_handler = logging.FileHandler(self.date_log_path)
         date_file_handler.setLevel(logging.DEBUG)
+
+        # 当前日志
         latest_file_handler = logging.FileHandler(self.latest_log_path)
         latest_file_handler.setLevel(logging.DEBUG)
 
-        # 创建一个控制台 handler 并设置其日志级别为 WARNING
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.WARNING)
-
-        # 创建一个 formatter 并将其添加到 handlers 中
+        # 统一格式化
         formatter = CustomFormatter(
-                                    '[%(date)s][%(time)s]%(levelname)s: %(message)s',
-                                    datefmt='%Y-%m-%d %H:%M:%S'
-                                    )
-        date_file_handler.setFormatter(formatter)
-        latest_file_handler.setFormatter(formatter)
-        console_handler.setFormatter(formatter)
+            '[%(date)s][%(time)s]%(levelname)s: %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        for handler in [date_file_handler, latest_file_handler]:
+            handler.setFormatter(formatter)
+            self.logger.addHandler(handler)
 
-        # 将 handlers 添加到 logger
-        self.logger.addHandler(date_file_handler)
-        self.logger.addHandler(latest_file_handler)
-        self.logger.addHandler(console_handler)
+    def enable_console(self, level: int = logging.INFO):
+        """启用控制台输出（或更新级别）"""
+        if not self.console_handler:
+            self.console_handler = logging.StreamHandler(sys.stdout)
+            self.console_handler.setFormatter(CustomFormatter(
+                '[%(date)s][%(time)s]%(levelname)s: %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            ))
+            self.logger.addHandler(self.console_handler)
+        self.console_handler.setLevel(level)
+
+    def disable_console(self):
+        """禁用控制台输出"""
+        if self.console_handler:
+            self.logger.removeHandler(self.console_handler)
+            self.console_handler = None
+
     def clear(self):
-        """
-        清空当前日志文件
-        """
+        """清空当前日志文件"""
         with open(self.latest_log_path, 'w') as f:
             f.write("")
+
+    # 代理Logger方法
     def debug(self, msg, *args, **kwargs):
         self.logger.debug(msg, *args, **kwargs)
 
@@ -102,3 +129,21 @@ class Logger:
         self.logger.critical(msg, *args, **kwargs)
 
 
+if __name__ == "__main__":
+    logger = Logger()
+
+    logger.info("这条日志会输出到控制台和文件")
+
+    # 动态调整控制台级别为DEBUG
+    logger.enable_console(logging.DEBUG)
+    logger.debug("Debug信息现在会显示在控制台")
+
+    # 关闭控制台输出
+    logger.disable_console()
+    logger.warning("这条警告只会记录到文件")
+
+    # 重新开启控制台
+    logger.enable_console()
+    # 动态调整控制台级别为ERROR
+    logger.enable_console(logging.ERROR)
+    logger.warning("这条警告只会记录到文件")
