@@ -1,9 +1,12 @@
+"""
+常量定义集合
+"""
+
+
 from enum import Enum
 from Logger import Logger
 
-"""
-这里是一些常用的常量集合
-"""
+
 
 # 日志实例
 logger = Logger()

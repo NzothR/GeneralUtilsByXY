@@ -1,6 +1,6 @@
 import torch
 
-from constants import AverageType
+from Constants import AverageType
 
 
 

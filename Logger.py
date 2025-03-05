@@ -1,7 +1,7 @@
 import logging
 import os
 from datetime import date, datetime
-from decorators import singleton
+from Decorators import singleton
 from datetime import datetime
 
 """

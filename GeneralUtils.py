@@ -1,3 +1,8 @@
+"""
+通用工具模块
+"""
+
+
 import os
 import cv2
 import sys
@@ -13,9 +18,9 @@ from torch.optim.lr_scheduler import _LRScheduler
 from typing import Callable, Set, Optional, Tuple, List, Dict
 
 # 自定义模块
-from constants import logger, Metrics, AverageType
+from Constants import logger, Metrics, AverageType
 from MetricsUtils import MetricsUtils
-"""一些辅助函数"""
+
 
 class FileUtils:
     def __init__(self):
@@ -54,8 +59,6 @@ class FileUtils:
 
         # 开始处理根目录
         process_directory(directory)
-
-
 
 
 class TrainUtils:

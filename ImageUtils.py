@@ -1,11 +1,17 @@
+"""
+图像处理工具模块
+"""
+
+
+
 import os
 import cv2
 import time
 import numpy as np
 from typing import Callable, Set, Optional, Tuple, List, Dict
 
-from constants import logger
-from Utils import FileUtils
+from Constants import logger
+from GeneralUtils import FileUtils
 
 class ImageUtils:
     def __init__(self, image_ext: Optional[Set[set]] = None):
@@ -18,61 +24,78 @@ class ImageUtils:
         else:
             self.valid_image_ext = set(image_ext)
 
-    def resize_and_pad(self, image_directory: str, target_size: Optional[Tuple[int, int]], 
+    def resize_and_pad(self, image_directory: str, target_size: Optional[Tuple[int, int]],
                         fill_color: Tuple[int, int, int] = (0, 0, 0), save_directory: str = None, recursive: bool = False) -> None:
         """
         缩放与填充图像至统一尺寸
         :param image_directory: 包含需要处理的图像目录
         :param target_size: 目标尺寸 (width, height)
-        :param fill_color: 填充颜色 (B, G, R)
-        :param save_directory: 保存目录, 默认为None
+        :param fill_color: 填充颜色 (B, G, R), 默认为(0, 0, 0), 即黑色
+        :param save_directory: 保存目录, 默认为上级目录的process文件夹
         :param recursive: 是否递归遍历子文件夹, 默认为False
+        :return: None
         """
+        # 参数校验
+        if target_size is None or target_size[0] <= 0 or target_size[1] <= 0:
+            raise ValueError("target_size 必须为正整数元组")
+        if any(c < 0 or c > 255 for c in fill_color):
+            raise ValueError("填充颜色值必须在 0-255 范围内")
+
         # 检查目录是否存在
         if not os.path.exists(image_directory):
             logger.error(f"目录 {image_directory} 不存在!")
             raise FileNotFoundError("Directory does not exist")
 
-        # 指定保存目录
         if save_directory is None:
-            last_directory = os.path.basename(os.path.normpath(image_directory))
-            save_directory = os.path.join('process', last_directory)
+            # 规范化路径并获取上级目录
+            normalized_image_dir = os.path.normpath(image_directory)
+            parent_dir = os.path.dirname(normalized_image_dir)
+            save_directory = os.path.join(parent_dir, "process")
 
-        # 创建保存目录
-        if not os.path.exists(save_directory):
-            os.makedirs(save_directory)
-            # 检查保存目录是否创建成功
-            if not os.path.exists(save_directory):
-                logger.error(f"目录 {save_directory} 创建失败!")
-                raise FileNotFoundError("Failed to create save directory")
+        # 创建目录（兼容已存在的情况）
+        try:
+            os.makedirs(save_directory, exist_ok=True)
+        except OSError as e:
+            logger.error(f"目录 {save_directory} 创建失败: {e}")
+            raise FileNotFoundError(f"无法创建目录: {save_directory}") from e
 
         # 计数
         count = 0
         # 错误文件计数
         error_count = 0
 
+        # 处理函数
         def process(image_file_path):
+            # 导入外部变量
             nonlocal save_directory, error_count, count, fill_color, target_size
-            saved_image_path = os.path.join(save_directory, os.path.basename(image_file_path))
+            # 获取相对路径并构建保存路径
+            relative_path = os.path.relpath(image_file_path, image_directory)
+            saved_image_path = os.path.join(save_directory, relative_path)
+            os.makedirs(os.path.dirname(saved_image_path), exist_ok=True)
 
             try:
+                # 读取图像
                 image = cv2.imread(image_file_path)
                 if image is None:
                     logger.error(f"无法读取图像: {image_file_path}")
                     error_count += 1
                     return
 
+                # 获取图像尺寸
                 height, width = image.shape[:2]
                 target_width, target_height = target_size
 
+                # 如果图像尺寸与目标尺寸相同，则直接保存
                 if height == target_height and width == target_width:
                     cv2.imwrite(saved_image_path, image)
                     count += 1
                     return
 
+                # 获取缩放比例
                 target_ratio = target_width / target_height
                 original_ratio = width / height
 
+                # 计算缩放后的尺寸
                 if original_ratio > target_ratio:
                     new_width = target_width
                     new_height = int(target_width / original_ratio)
@@ -80,10 +103,11 @@ class ImageUtils:
                     new_height = target_height
                     new_width = int(target_height * original_ratio)
 
+                # 缩放图像
                 resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
 
                 top, bottom, left, right = 0, 0, 0, 0
-
+                # 计算填充尺寸
                 if new_width < target_width:
                     difference = target_width - new_width
                     left, right = int(difference / 2), int(difference / 2)
@@ -94,9 +118,10 @@ class ImageUtils:
                     top, bottom = int(difference / 2), int(difference / 2)
                     if difference % 2 != 0:
                         top += 1
-
+                # 填充图像
                 padded_image = cv2.copyMakeBorder(resized_image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=fill_color)
 
+                # 保存图像
                 cv2.imwrite(saved_image_path, padded_image)
                 count += 1
             except Exception as e:

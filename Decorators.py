@@ -1,10 +1,13 @@
-from typing import Any, Dict
-import threading
-
 
 """
 一些自定义装饰器，具有多线程安全
 """
+
+
+from typing import Any, Dict
+import threading
+
+
 
 # 单例装饰器
 def singleton(cls):
