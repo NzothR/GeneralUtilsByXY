@@ -77,6 +77,7 @@ class ImageUtils:
             try:
                 # 读取图像
                 image = cv2.imread(image_file_path)
+                logger.info(f"正在处理图像: {image_file_path}")
                 if image is None:
                     logger.error(f"无法读取图像: {image_file_path}")
                     error_count += 1
