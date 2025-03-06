@@ -289,7 +289,7 @@ class TrainUtils:
                     history[f"Val {metric.value}"].append(avg_metric)
 
                 # ===================== 日志记录 =====================
-                logger.info(f"\nEpoch: {epoch}")
+                logger.info(f"\nEpoch: {epoch}/{epochs}")
                 logger.info(f"Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
                 for metric in metrics:
                     logger.info(f"Train {metric.value}: {history[f'Train {metric.value}'][-1]:.4f} | "
@@ -354,7 +354,8 @@ class TrainUtils:
             return
         # 确保目录存在
         try:
-            os.makedirs(save_path, exist_ok=True)
+            if save_path is not None:
+                os.makedirs(save_path, exist_ok=True)
         except OSError as e:
             logger.error(f"目录 {save_path} 创建失败: {e}")
             raise FileNotFoundError(f"无法创建目录: {save_path}") from e
@@ -379,8 +380,13 @@ class TrainUtils:
             plt.tight_layout()
 
             # 保存图表
-            if save_path:
-                plt.savefig(f'{save_path}_{metric}.png')
+            if save_path is not None:
+                save_metric_path = os.path.normpath(save_path)
+                # 去除空格
+                save_name = metric.replace(' ', '')
+                save_metric_path = os.path.join(save_metric_path, f'{save_name}.png')
+                plt.savefig(save_metric_path)
+                logger.info(f"{save_name}.png'图表已保存至 {save_metric_path}")
 
             # 显示图表
             plt.show()
