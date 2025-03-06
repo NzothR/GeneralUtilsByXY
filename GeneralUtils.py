@@ -273,6 +273,12 @@ class TrainUtils:
         if not history:
             print("History is empty.")
             return
+        # 确保目录存在
+        try:
+            os.makedirs(save_path, exist_ok=True)
+        except OSError as e:
+            logger.error(f"目录 {save_path} 创建失败: {e}")
+            raise FileNotFoundError(f"无法创建目录: {save_path}") from e
 
         epochs = np.arange(1, len(next(iter(history.values()))) + 1)  # 获取epochs数量并生成从1开始的序列
 
