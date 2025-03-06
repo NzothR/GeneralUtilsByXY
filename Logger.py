@@ -45,7 +45,7 @@ class Logger:
     def __init__(
         self,
         name: str = "log",
-        console_enabled: bool = True,  # 初始是否启用控制台输出
+        console_enabled: bool = False,  # 初始是否启用控制台输出
         console_level: int = logging.DEBUG  # 控制台默认日志级别
     ):
         self.logger = logging.getLogger(name)
@@ -110,6 +110,8 @@ class Logger:
     def clear(self):
         """清空当前日志文件"""
         with open(self.latest_log_path, 'w') as f:
+            f.write("")
+        with open(self.date_log_path, 'w') as f:
             f.write("")
 
     # 代理Logger方法
