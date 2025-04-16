@@ -32,6 +32,7 @@ class CustomFormatter(logging.Formatter):
         record.time = time
 
         # 使用自定义格式字符串
+        # self._style._fmt = '[%(date)s][%(time)s]%(levelname)s: %(message)s'
         self._style._fmt = '[%(date)s][%(time)s]%(levelname)s: %(message)s'
 
         return super().format(record)
@@ -111,8 +112,8 @@ class Logger:
         """清空当前日志文件"""
         with open(self.latest_log_path, 'w') as f:
             f.write("")
-        with open(self.date_log_path, 'w') as f:
-            f.write("")
+        # with open(self.date_log_path, 'w') as f:
+        #     f.write("")
 
     # 代理Logger方法
     def debug(self, msg, *args, **kwargs):

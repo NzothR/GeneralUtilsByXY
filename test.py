@@ -1,131 +1,144 @@
-import os
-import time
 import torch
-import torch.utils
-import torchvision
 import torch.nn as nn
-from tqdm import tqdm
-import torch.utils.data
-import matplotlib.pyplot as plt
-
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+from Constants import logger
 from GeneralUtils import TrainUtils
-from Constants import Metrics
+import os
+
+# 配置日志记录
+logger.enable_console()
 
 
+def test_general_train():
+    """测试通用训练函数"""
+    # 配置参数
+    config = {
+        "batch_size": 64,
+        "num_epochs": 2,
+        "learning_rate": 0.001,
+        "num_classes": 10,
+        "checkpoint_path": "./test_checkpoints",
+        "use_amp": True         # 测试混合精度可以改为True（需要GPU支持）
+    }
 
+    # 设备检测
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    logger.info(f"使用设备: {device.upper()}")
 
-class Net(nn.Module):
-    def __init__(self):
-        super(Net, self).__init__()
+    # 构建数据管道
+    def prepare_dataloaders():
+        """准备MNIST数据集"""
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.1307,), (0.3081,))
+        ])
 
-        # 定义一个Sequential容器，按顺序执行其中的所有模块
-        self.model = nn.Sequential(
-            # 第一层卷积层
-            # 输入通道数为1（灰度图像），输出通道数为16，卷积核大小为3x3，步长为1，填充1个像素
-            nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, stride=1, padding=1),
-            # ReLU激活函数，引入非线性
-            nn.ReLU(),
-            # 最大池化层，池化窗口大小为2x2，步长为2
-            # 通过池化操作，特征图尺寸减半，从28x28变为14x14
-            nn.MaxPool2d(kernel_size=2, stride=2),
-
-            # 第二层卷积层
-            # 输入通道数为16（上一层的输出通道数），输出通道数为32，卷积核大小为3x3，步长为1，填充1个像素
-            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1),
-            # ReLU激活函数
-            nn.ReLU(),
-            # 最大池化层
-            # 特征图尺寸再次减半，从14x14变为7x7
-            nn.MaxPool2d(kernel_size=2, stride=2),
-
-            # 第三层卷积层
-            # 输入通道数为32，输出通道数为64，卷积核大小为3x3，步长为1，填充1个像素
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1),
-            # ReLU激活函数
-            nn.ReLU(),
-
-            # 展平层，将多维张量展平成一维张量，以便输入到全连接层
-            # 这里输入的特征图尺寸为7x7x64，展平后为7*7*64=3136
-            nn.Flatten(),
-
-            # 第一个全连接层
-            # 输入维度为3136，输出维度为128
-            nn.Linear(in_features=7 * 7 * 64, out_features=128),
-            # ReLU激活函数
-            nn.ReLU(),
-
-            # 第二个全连接层
-            # 输入维度为128，输出维度为10（对应MNIST数据集的10个类别）
-            nn.Linear(in_features=128, out_features=10),
-            # Softmax层，将输出转换为概率分布
-            nn.Softmax(dim=1)
+        train_set = datasets.MNIST(
+            root="./data",
+            train=True,
+            download=True,
+            transform=transform
+        )
+        test_set = datasets.MNIST(
+            root="./data",
+            train=False,
+            download=True,
+            transform=transform
         )
 
-    def forward(self, input):
-        # 前向传播过程
-        # 将输入数据传递给定义好的模型
-        output = self.model(input)
-        return output
+        train_loader = DataLoader(
+            train_set,
+            batch_size=config["batch_size"],
+            shuffle=True,
+            num_workers=0  # 为避免多进程问题，测试时设为0
+        )
+        test_loader = DataLoader(
+            test_set,
+            batch_size=config["batch_size"],
+            shuffle=False,
+            num_workers=0
+        )
+        return train_loader, test_loader
 
+    # 定义简单CNN模型
+    class TestCNN(nn.Module):
+        def __init__(self, num_classes=10):
+            super(TestCNN, self).__init__()
+            self.features = nn.Sequential(
+                nn.Conv2d(1, 32, kernel_size=3),  # 输入通道1，输出32
+                nn.ReLU(),
+                nn.MaxPool2d(2),
+                nn.Conv2d(32, 64, kernel_size=3),
+                nn.ReLU(),
+                nn.MaxPool2d(2)
+            )
+            self.classifier = nn.Sequential(
+                nn.Flatten(),
+                nn.Linear(64 * 5 * 5, 128),  # 计算特征图尺寸 (28-2)/2=13 → (13-2)/2=5.5 → floor为5
+                nn.ReLU(),
+                nn.Linear(128, num_classes)
+            )
 
+        def forward(self, x):
+            x = self.features(x)
+            return self.classifier(x)
 
-def main():
-    """主函数"""
-    # 如果网络能够使用GPU则使用GPU进行训练
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    print("使用设备：", device)
+    # 准备数据
+    train_loader, test_loader = prepare_dataloaders()
+    logger.info(f"训练样本数: {len(train_loader.dataset)} | 测试样本数: {len(test_loader.dataset)}")
 
-    net = Net()
+    # 初始化模型
+    model = TestCNN(num_classes=config["num_classes"])
+    logger.info("模型结构:\n%s", model)
 
-    """数据准备"""
-    # 这个函数包含了两个操作: 将图片转换为张量，以及将图片进行归一化处理
-    transform = torchvision.transforms.Compose([
-        torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize(mean = [0.5], std = [0.5])
-    ]
+    # 定义损失函数
+    criterion = nn.CrossEntropyLoss()
+
+    # 执行训练
+    trained_model, history = TrainUtils().general_classification_train(
+        train_data_loader=train_loader,
+        val_data_loader=test_loader,
+        model=model,
+        model_name="test_cnn",
+        criterion=criterion,
+        num_classes=config["num_classes"],
+        optimizer=optim.Adam(model.parameters(), lr=config["learning_rate"]),
+        epochs=config["num_epochs"],
+        device=device,
+        checkpoint_path=config["checkpoint_path"],
+        use_amp=config["use_amp"]
     )
-    # 数据保存路径
-    data_path = os.path.join("data")
 
-    # 下载训练集和测试集
-    train_data = torchvision.datasets.MNIST(data_path, train=True, transform=transform, download=True)
-    test_data = torchvision.datasets.MNIST(data_path, train = False, transform=transform)
+    # 验证训练结果
+    assert len(history["Train Loss"]) == config["num_epochs"], "训练轮数不匹配"
+    assert len(history["Val Loss"]) == config["num_epochs"], "验证轮数不匹配"
+    logger.info("训练损失记录: %s", history["Train Loss"])
+    logger.info("验证损失记录: %s", history["Val Loss"])
 
-    # 设置每一个Batch的大小
-    batch_size = 256
+    # 最终模型测试
+    trained_model.eval()
+    correct = 0
+    with torch.no_grad():
+        for images, labels in test_loader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = trained_model(images)
+            pred = outputs.argmax(dim=1)
+            correct += (pred == labels).sum().item()
 
-    # 构建数据集和测试集的DataLoader
-    train_data_loader = torch.utils.data.DataLoader(
-        dataset = train_data,
-        batch_size = batch_size,
-        shuffle = True
-        )
-    test_data_loader = torch.utils.data.DataLoader(
-        dataset = test_data,
-        batch_size = batch_size
-        )
-    
-    # 初始化训练工具
-    train_utils = TrainUtils()
+    accuracy = 100 * correct / len(test_loader.dataset)
+    logger.info(f"最终测试准确率: {accuracy:.2f}%")
+    assert accuracy > 90, "模型准确率未达到预期"  # 正常训练2个epoch应能达到约97%+
 
-    # 设置训练轮数
-    EPOCHS = 3
-    metrics = [Metrics.ACCURACY, Metrics.PRECISION, Metrics.RECALL, Metrics.F1_SCORE]
-    # 损失函数
-    loss_f = torch.nn.CrossEntropyLoss()
-    # 迭代器
-    optimizer = torch.optim.Adam(net.parameters())
-    model, history = train_utils.general_train(
-        test_data_loader=test_data_loader,
-        train_data_loader=train_data_loader,
-        net=net,
-        metrics = metrics,
-        optimizer=optimizer,
-        criterion=loss_f,
-        epochs=EPOCHS,
-        device=device
-    )
-    print(history)
-    train_utils.plot_history(history=history, save_path="./history.png")
+    TrainUtils.plot_history(history, "./test")
 
-main()
+    # 清理测试检查点
+    if os.path.exists(config["checkpoint_path"]):
+        for f in os.listdir(config["checkpoint_path"]):
+            os.remove(os.path.join(config["checkpoint_path"], f))
+        os.rmdir(config["checkpoint_path"])
+        logger.info("已清理测试检查点")
+
+if __name__ == "__main__":
+    test_general_train()

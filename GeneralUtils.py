@@ -27,8 +27,10 @@ class FileUtils:
         pass
 
     @staticmethod
-    def process_files_with_filter(directory: str, operation: Callable[[str], None], 
-                                 filter_ext: Optional[Set[str]] = None, recursive: bool = False) -> None:
+    def process_files_with_filter(directory: str,
+                    operation: Callable[[str], None],
+                    filter_ext: Set[str] = None,
+                    recursive: bool = False) -> None:
         """
         遍历指定文件夹下的每个文件, 根据文件类型限定参数过滤文件,
         并对每个过滤后的文件应用提供的操作函数。
@@ -121,7 +123,7 @@ class TrainUtils:
         if metric == Metrics.F1_SCORE:
             return self.metrics_utils.calculate_f1_score(predictions, y_true, num_classes, average_type, device)
 
-    def general_train(self,
+    def general_classification_train(self,
             train_data_loader: DataLoader,
             val_data_loader: DataLoader,
             model: nn.Module,
@@ -136,7 +138,7 @@ class TrainUtils:
             metrics: Optional[List[Metrics]] = None,
             checkpoint_path: Optional[str] = None,
             checkpoint_interval: int = 5,
-            use_amp: bool = False  # 新增混合精度控制参数
+            use_amp: bool = False
         ) -> Tuple[nn.Module, Dict[str, List[float]]]:
             """
             通用分类模型训练函数
@@ -154,7 +156,7 @@ class TrainUtils:
             :param metrics: 评估指标列表, 默认为None, 默认使用准确率评估
             :param checkpoint_path: 检查点保存路径, 默认为None
             :param checkpoint_interval: 每隔多少轮保存一次模型, 默认为5
-            :param use_amp: 是否启用自动混合精度训练，默认为False
+            :param use_amp: 是否启用自动混合精度训练, 默认为False
             :return: 训练好的网络模型和训练过程记录
             """
             # 确保检查点保存路径存在（当提供时）
