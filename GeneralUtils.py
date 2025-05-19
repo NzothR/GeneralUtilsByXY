@@ -27,18 +27,20 @@ class FileUtils:
         pass
 
     @staticmethod
-    def process_files_with_filter(directory: str,
+    def process_files_with_filter(
+                    directory: str,
                     operation: Callable[[str], None],
                     filter_ext: Set[str] = None,
-                    recursive: bool = False) -> None:
+                    recursive: bool = False
+                    ) -> None:
         """
         遍历指定文件夹下的每个文件, 根据文件类型限定参数过滤文件,
         并对每个过滤后的文件应用提供的操作函数。
-
-        :param directory: 要遍历的文件夹路径
-        :param operation: 应用于每个文件的操作函数
-        :param filter_ext: 用来过滤文件的扩展名集合(如 {'.txt', '.csv'})
-        :param recursive: 是否递归遍历子文件夹, 默认为False
+        Args:
+            directory: 要遍历的文件夹路径
+            operation: 应用于每个文件的操作函数
+            filter_ext: 用来过滤文件的扩展名集合(如 {'.txt', '.csv'})
+            recursive: 是否递归遍历子文件夹, 默认为False
         """
         # 判断目录是否存在
         if not os.path.exists(directory):
@@ -62,9 +64,25 @@ class FileUtils:
         # 开始处理根目录
         process_directory(directory)
 
+    @staticmethod
+    def ensure_absolute_path(data_root_dir:str) -> str:
+        """
+        将相对路径转换为绝对路径
+        Args:
+            data_root_dir: 输入的相对路径
+        Returns:
+            绝对路径
+        """
+        if not os.path.isabs(data_root_dir):
+            data_root_dir = os.path.abspath(data_root_dir)
+        return data_root_dir
+
+
 
 class TrainUtils:
-    """训练工具类"""
+    """
+    训练工具类
+    """
     def __init__(self):
         # 初始化指标计算工具
         self.metrics_utils = MetricsUtils()
@@ -73,8 +91,10 @@ class TrainUtils:
     def is_dataloader_empty(data_loader: DataLoader) -> bool:
         """
         判断DataLoader是否为空
-        :param data_loader: DataLoader对象
-        :return: 如果DataLoader为空, 返回True, 否则返回False
+        Args:
+            data_loader: DataLoader对象
+        Returns:
+            如果DataLoader为空, 返回True, 否则返回False
         """
         try:
             return len(data_loader.dataset) == 0
@@ -85,8 +105,10 @@ class TrainUtils:
     def get_num_classes(data_loaders: List[DataLoader]) -> int:
         """
         从数据加载器中推导出类别数量
-        :param data_loaders: 数据加载器列表
-        :return: 类别数量
+        Args:
+            data_loaders: 数据加载器列表
+        Returns:
+            类别数量
         """
         all_labels = set()
 
@@ -103,13 +125,15 @@ class TrainUtils:
     def calculate_metric(self, metric: Metrics, y_pred: torch.Tensor, y_true: torch.Tensor, num_classes: int, average_type: AverageType = AverageType.MACRO, device: str = 'cpu') -> float:
         """
         根据预测值和真实值计算对应的指标
-        :param metric: 指标类型
-        :param y_pred: 预测值
-        :param y_true: 真实值
-        :param num_classes: 类别数量
-        :param average_type: 平均类型, 可选值: MACRO, MICRO
-        :param device: 计算设备
-        :return: 指标计算结果
+        Args:
+            metric: 指标类型
+            y_pred: 预测值
+            y_true: 真实值
+            num_classes: 类别数量
+            average_type: 平均类型, 可选值: MACRO, MICRO
+            device: 计算设备
+        Returns:
+            指标计算结果
         """
         # 获取预测值
         predictions = torch.argmax(y_pred, dim=1)
@@ -142,22 +166,24 @@ class TrainUtils:
         ) -> Tuple[nn.Module, Dict[str, List[float]]]:
             """
             通用分类模型训练函数
-            :param train_data_loader: 训练数据集的DataLoader
-            :param val_data_loader: 验证数据集的DataLoader
-            :param model: 待训练的网络模型
-            :param model_name: 模型名称
-            :param criterion: 损失函数
-            :param num_classes: 类别数量,默认为None(自动根据数据集获取)
-            :param optimizer: 优化器实例, 默认为None(内部将创建一个SGD优化器)
-            :param epochs: 训练周期数, 默认为20
-            :param learning_rate: 学习率, 默认为0.1
-            :param device: 计算设备, 例如"cpu"或"cuda", 默认为"cpu"
-            :param lr_scheduler: 学习率调度器, 默认为None, 即不使用学习率调度器
-            :param metrics: 评估指标列表, 默认为None, 默认使用准确率评估
-            :param checkpoint_path: 检查点保存路径, 默认为None
-            :param checkpoint_interval: 每隔多少轮保存一次模型, 默认为5
-            :param use_amp: 是否启用自动混合精度训练, 默认为False
-            :return: 训练好的网络模型和训练过程记录
+            Args:
+                train_data_loader: 训练数据集的DataLoader
+                val_data_loader: 验证数据集的DataLoader
+                model: 待训练的网络模型
+                model_name: 模型名称
+                criterion: 损失函数
+                num_classes: 类别数量,默认为None(自动根据数据集获取)
+                optimizer: 优化器实例, 默认为None(内部将创建一个SGD优化器)
+                epochs: 训练周期数, 默认为20
+                learning_rate: 学习率, 默认为0.1
+                device: 计算设备, 例如"cpu"或"cuda", 默认为"cpu"
+                lr_scheduler: 学习率调度器, 默认为None, 即不使用学习率调度器
+                metrics: 评估指标列表, 默认为None, 默认使用准确率评估
+                checkpoint_path: 检查点保存路径, 默认为None
+                checkpoint_interval: 每隔多少轮保存一次模型, 默认为5
+                use_amp: 是否启用自动混合精度训练, 默认为False
+            Returns:
+                训练好的网络模型和训练过程记录
             """
             # 确保检查点保存路径存在（当提供时）
             if checkpoint_path is not None:
@@ -347,8 +373,9 @@ class TrainUtils:
     def plot_history(history, save_path=None) -> None:
         """
         绘制训练过程记录中的损失曲线和指标曲线, 每个指标一个图表
-        :param history: 训练过程记录, 包含损失和指标等数据
-        :param save_path: 图表保存路径前缀, 如果给出, 则会保存图表
+        Args:
+            history: 训练过程记录, 包含损失和指标等数据
+            save_path: 图表保存路径前缀, 如果给出, 则会保存图表
         """
         # 检查history是否为空
         if not history:
