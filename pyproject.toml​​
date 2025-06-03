@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "GeneralUtilsByXY"
+version = "0.1.0"
+dependencies = [
+    "opencv-python-headless",
+    "matplotlib",
+    "pytest",
+    "numpy==1.26.4",
+    "torch==2.7.0",
+    "torchvision==0.22.0",
+    "tqdm==4.67.1"
+]
+requires-python = ">=3.10"
