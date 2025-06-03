@@ -1,3 +1,7 @@
+# ImageUtils.py
+
+
+
 """
 图像处理工具模块
 """
@@ -10,8 +14,10 @@ import time
 import numpy as np
 from typing import Callable, Set, Optional, Tuple, List, Dict
 
-from Constants import logger
-from GeneralUtils import FileUtils
+
+
+from .Constants import logger
+from .GeneralUtils import FileUtils
 
 class ImageUtils:
     def __init__(self, image_ext: Optional[Set[set]] = None):

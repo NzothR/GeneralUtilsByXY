@@ -1,10 +1,12 @@
+# Constants.py
+
 """
 常量定义集合
 """
 
 
 from enum import Enum
-from Logger import Logger
+from .Logger import Logger
 
 
 

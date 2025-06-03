@@ -1,3 +1,7 @@
+# TrainUtils.py
+
+
+
 """
 训练工具类
 """
@@ -14,8 +18,8 @@ from torch.optim.lr_scheduler import _LRScheduler
 from typing import Callable, Optional, Tuple, List, Dict
 
 # 自定义模块
-from Constants import logger, Metrics, AverageType
-from MetricsUtils import MetricsUtils
+from .Constants import logger, Metrics, AverageType
+from .MetricsUtils import MetricsUtils
 
 class TrainUtils:
     """
