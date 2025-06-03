@@ -1,3 +1,3 @@
-from Constants import logger
+from .Constants import logger
 
 logger.enable_console()

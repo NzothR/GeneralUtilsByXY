@@ -3,7 +3,7 @@ import sys
 import logging
 from datetime import date, datetime
 
-from Decorators import singleton
+from .Decorators import singleton
 
 """
 一个简单的全局单一日志记录器，用于记录日志到文件，控制台
