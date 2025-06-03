@@ -4,7 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "GeneralUtilsByXY"
-version = "0.1.0"
+version = "0.1.1"
+description = "小依的一些通用工具集"
+authors = [{ name = "小依", email = "2877544374@qq.com" }]
 dependencies = [
     "opencv-python-headless",
     "matplotlib",
@@ -15,3 +17,6 @@ dependencies = [
     "tqdm==4.67.1"
 ]
 requires-python = ">=3.10"
+
+[project.urls]
+Homepage = "https://github.com/NzothR/GeneralUtilsByXY"
