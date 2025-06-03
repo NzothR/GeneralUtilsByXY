@@ -7,6 +7,7 @@ setup(
     install_requires=[
         "opencv-python-headless",
         "matplotlib",
+        "pytest",
         "numpy==1.26.4",
         "torch==2.7.0",
         "torchvision==0.22.0",
