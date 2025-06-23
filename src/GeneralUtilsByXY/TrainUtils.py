@@ -266,7 +266,7 @@ class TrainUtils:
                     logger.info(f"Train {metric.value}: {history[f'Train {metric.value}'][-1]:.4f} | "
                                 f"Val {metric.value}: {history[f'Val {metric.value}'][-1]:.4f}")
                 # 取出准确率
-                val_acc = history[f'Val {Metrics.ACCURACY}'][-1]
+                val_acc = history[f'Val {Metrics.ACCURACY.value}'][-1]
 
                 # ===================== 学习率调整 =====================
                 if lr_scheduler is not None:
