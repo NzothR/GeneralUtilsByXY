@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "GeneralUtilsByXY"
-version = "0.1.1"
+version = "0.1.2"
 description = "小依的一些通用工具集"
 authors = [{ name = "小依", email = "2877544374@qq.com" }]
 dependencies = [
