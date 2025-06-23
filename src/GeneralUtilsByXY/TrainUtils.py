@@ -257,14 +257,7 @@ class TrainUtils:
                 for metric in metrics:
                     avg_metric = val_metric_sums[metric.value] / len(val_data_loader)
                     history[f"Val {metric.value}"].append(avg_metric)
-                # 计算准确率
-                val_acc = self.calculate_metric(
-                                metric=Metrics.ACCURACY,
-                                y_pred=outputs,
-                                y_true=labels,
-                                num_classes=num_classes,
-                                device=device
-                            )
+
 
                 # ===================== 日志记录 =====================
                 logger.info(f"\nEpoch: {epoch}/{epochs}")
@@ -272,6 +265,8 @@ class TrainUtils:
                 for metric in metrics:
                     logger.info(f"Train {metric.value}: {history[f'Train {metric.value}'][-1]:.4f} | "
                                 f"Val {metric.value}: {history[f'Val {metric.value}'][-1]:.4f}")
+                # 取出准确率
+                val_acc = history[f'Val {Metrics.ACCURACY}'][-1]
 
                 # ===================== 学习率调整 =====================
                 if lr_scheduler is not None:
