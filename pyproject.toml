@@ -11,16 +11,10 @@ dependencies = [
     "opencv-python-headless",
     "matplotlib",
     "pytest",
-<<<<<<< HEAD
     "numpy>=1.26.4",
     "torch>=2.7.0",
     "torchvision>=0.22.0",
     "tqdm>=4.67.1"
-=======
-    "numpy",
-    "torch",
-    "tqdm"
->>>>>>> ac9ee162d08983b8354a961818f941cefdcf049a
 ]
 requires-python = ">=3.10"
 
