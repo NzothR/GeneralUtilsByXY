@@ -1,5 +1,9 @@
 /data/
 /__pycache__/
 /logs/
+/src/GeneralUtilsByXY.egg-info/
+/src/GeneralUtilsByXY/__pycache__/
+
+*.pyc
 
 test.py
