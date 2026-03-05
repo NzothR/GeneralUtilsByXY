@@ -157,8 +157,8 @@ class TrainUtils:
             # 将网络模型移动到指定设备
             model.to(device)
 
-            # 初始化最佳验证损失（用于早停或最佳模型保存）
-            best_val_loss = float('inf')
+            # 初始化最佳验证准确度
+            best_val_acc = 0
 
             # 根据use_amp参数初始化自动混合精度（AMP）
             scaler = torch.amp.GradScaler(
@@ -258,12 +258,15 @@ class TrainUtils:
                     avg_metric = val_metric_sums[metric.value] / len(val_data_loader)
                     history[f"Val {metric.value}"].append(avg_metric)
 
+
                 # ===================== 日志记录 =====================
                 logger.info(f"\nEpoch: {epoch}/{epochs}")
                 logger.info(f"Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
                 for metric in metrics:
                     logger.info(f"Train {metric.value}: {history[f'Train {metric.value}'][-1]:.4f} | "
                                 f"Val {metric.value}: {history[f'Val {metric.value}'][-1]:.4f}")
+                # 取出准确率
+                val_acc = history[f'Val {Metrics.ACCURACY.value}'][-1]
 
                 # ===================== 学习率调整 =====================
                 if lr_scheduler is not None:
@@ -291,12 +294,12 @@ class TrainUtils:
                         }, checkpoint_file)
                         logger.info(f"检查点已保存至 {checkpoint_file}")
 
-                    # 保存最佳模型（根据验证损失）
-                    if avg_val_loss < best_val_loss:
-                        best_val_loss = avg_val_loss
+                    # 保存最佳模型（根据验证准确率）
+                    if best_val_acc < val_acc:
+                        best_val_acc = val_acc
                         best_model_path = os.path.join(checkpoint_path, f"{model_name}_best.pth")
                         torch.save(model.state_dict(), best_model_path)
-                        logger.info(f"最佳模型已保存至 {best_model_path} (Val Loss: {avg_val_loss:.4f})")
+                        logger.info(f"最佳模型已保存至 {best_model_path} (Val Acc: {val_acc:.4f})")
 
             # ===================== 最终处理 =====================
             end_time = time.time()

@@ -1,9 +1,13 @@
 /data/
-/__pycache__/
+/src/GeneralUtilsByXY/__pycache__/
 /logs/
 /src/GeneralUtilsByXY.egg-info/
+<<<<<<< HEAD
 /src/GeneralUtilsByXY/__pycache__/
 
 *.pyc
+=======
+>>>>>>> ac9ee162d08983b8354a961818f941cefdcf049a
 
+*.pyc
 test.py
